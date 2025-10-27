@@ -3203,11 +3203,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Grpc\\AuthService.Grpc.csproj",
+      "projectUniqueName": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Grpc\\AuthService.Grpc.csproj",
       "projectName": "AuthService.Grpc",
-      "projectPath": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Grpc\\AuthService.Grpc.csproj",
+      "projectPath": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Grpc\\AuthService.Grpc.csproj",
       "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-      "outputPath": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Grpc\\obj\\",
+      "outputPath": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Grpc\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -3228,11 +3228,11 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Application\\AuthService.Application.csproj": {
-              "projectPath": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Application\\AuthService.Application.csproj"
+            "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Application\\AuthService.Application.csproj": {
+              "projectPath": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Application\\AuthService.Application.csproj"
             },
-            "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj": {
-              "projectPath": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj"
+            "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj": {
+              "projectPath": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj"
             }
           }
         }

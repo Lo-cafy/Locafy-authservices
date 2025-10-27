@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "VxXsl6oiMj0=",
+  "dgSpecHash": "JB9UHxh3wTU=",
   "success": true,
-  "projectFilePath": "d:\\SingleProject1\\BACKEND\\AuthHostingRepo\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj",
+  "projectFilePath": "D:\\SingleProject1\\AuthService\\databwseupdate\\AuthService.Infrastructure\\AuthService.Infrastructure.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\muham\\.nuget\\packages\\dapper\\2.1.66\\dapper.2.1.66.nupkg.sha512",
     "C:\\Users\\muham\\.nuget\\packages\\mediatr\\13.0.0\\mediatr.13.0.0.nupkg.sha512",
