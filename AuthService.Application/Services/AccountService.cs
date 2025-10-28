@@ -1,11 +1,12 @@
-﻿using AuthService.Application.DTOs.Account;
+// AuthService.Application/Services/AccountService.cs
+using AuthService.Application.DTOs.Account;
 using AuthService.Application.DTOs.Auth;
 using AuthService.Application.Exceptions;
 using AuthService.Application.Interfaces;
 using AuthService.Domain.Entities;
 using AuthService.Domain.Enums;
 using AuthService.Infrastructure.Interfaces;
-using AuthService.Infrastructure.Repositories;
+using AuthService.Infrastructure.Repositories; // For InfrastructureException
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
@@ -13,22 +14,20 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using static EmailService.Grpc.EmailService;
+using Npgsql; // For PostgresException
 
 namespace AuthService.Application.Services
 {
     public class AccountService : IAccountService
     {
-        private readonly IDatabaseFunctionService _databaseFunctionService;
         private readonly IUserCredentialRepository _credentialRepository;
         private readonly ISecurityTokenRepository _tokenRepository;
         private readonly IPasswordService _passwordService;
         private readonly ILogger<AccountService> _logger;
-        private readonly EmailService.Grpc.EmailService.EmailServiceClient _emailServiceClient;
+        private readonly EmailService.Grpc.EmailService.EmailServiceClient _emailServiceClient;  
         private readonly IConfiguration _configuration;
 
         public AccountService(
-            IDatabaseFunctionService databaseFunctionService,
             IUserCredentialRepository credentialRepository,
             ISecurityTokenRepository tokenRepository,
             IPasswordService passwordService,
@@ -36,7 +35,6 @@ namespace AuthService.Application.Services
             EmailService.Grpc.EmailService.EmailServiceClient emailServiceClient,
             IConfiguration configuration)
         {
-            _databaseFunctionService = databaseFunctionService;
             _credentialRepository = credentialRepository;
             _tokenRepository = tokenRepository;
             _passwordService = passwordService;
@@ -78,8 +76,8 @@ namespace AuthService.Application.Services
                     var clientAppUrl = _configuration["AppSettings:ClientAppUrl"];
                     if (string.IsNullOrEmpty(clientAppUrl))
                     {
-                        _logger.LogError("ClientAppUrl is not configured in appsettings.json");
-                        return true;
+                        _logger.LogError("ClientAppUrl is not configured in appsettings.json under AppSettings:ClientAppUrl");
+                        return false;
                     }
 
                     var resetLink = $"{clientAppUrl}/reset-password?token={resetToken}";
@@ -95,17 +93,23 @@ namespace AuthService.Application.Services
                     await _emailServiceClient.SendEmailAsync(emailRequest);
                     _logger.LogInformation("Password reset email sent to: {Email}", email);
                 }
+                catch (Grpc.Core.RpcException grpcEx)
+                {
+                    _logger.LogError(grpcEx, "Failed to send password reset email via gRPC to {Email}. Status: {StatusCode}", email, grpcEx.StatusCode);
+                    return false;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to send password reset email to {Email}", email);
+                    return false;
                 }
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Password reset request failed");
-                throw;
+                _logger.LogError(ex, "Password reset request process failed for {Email}", email);
+                return false;
             }
         }
 
@@ -116,27 +120,30 @@ namespace AuthService.Application.Services
                 var tokenHash = HashToken(request.Token);
                 var token = await _tokenRepository.GetByTokenHashAsync(tokenHash);
 
+                const string invalidTokenMsg = "Invalid or expired reset token.";
+                const string usedTokenMsg = "Reset token has already been used.";
+                const string userNotFoundMsg = "User account not found for this token.";
+
                 if (token == null || token.TokenType != TokenTypeEnum.ResetPassword)
                 {
-                    throw new ValidationException("Invalid reset token");
+                    throw new ValidationException(invalidTokenMsg);
                 }
-
                 if (token.ExpiresAt < DateTime.UtcNow)
                 {
-                    throw new ValidationException("Reset token has expired");
+                    throw new ValidationException(invalidTokenMsg);
                 }
-
                 if (token.UsedAt.HasValue)
                 {
-                    throw new ValidationException("Reset token has already been used");
+                    throw new ValidationException(usedTokenMsg);
                 }
 
                 _passwordService.ValidatePasswordStrength(request.NewPassword);
 
-                var credential = await _credentialRepository.GetByUserIdAsync(token.UserId);
+                // Fix: Cast long UserId from token to int for repository method
+                var credential = await _credentialRepository.GetByUserIdAsync((int)token.UserId);
                 if (credential == null)
                 {
-                    throw new ValidationException("User not found");
+                    throw new ValidationException(userNotFoundMsg);
                 }
 
                 var passwordSalt = GeneratePasswordSalt();
@@ -147,18 +154,25 @@ namespace AuthService.Application.Services
                 credential.PasswordChangedAt = DateTime.UtcNow;
                 credential.FailedAttempts = 0;
                 credential.LockedUntil = null;
+                // Add these if needed by UpdateAsync and entity
+                // credential.PasswordAlgorithm = "bcrypt";
+                // credential.PasswordIterations = 12;
                 await _credentialRepository.UpdateAsync(credential);
 
                 await _tokenRepository.MarkAsUsedAsync(token.TokenId);
 
-                _logger.LogInformation("Password reset completed for user: {UserId}", token.UserId);
-
+                _logger.LogInformation("Password reset completed successfully for user: {UserId}", token.UserId);
                 return true;
+            }
+            catch (ValidationException vex)
+            {
+                _logger.LogWarning("Password reset validation failed: {ErrorMessage}", vex.Message);
+                return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Password reset failed");
-                throw;
+                _logger.LogError(ex, "An unexpected error occurred during password reset.");
+                return false;
             }
         }
 
@@ -171,6 +185,7 @@ namespace AuthService.Application.Services
                 {
                     throw new ValidationException("User not found");
                 }
+
                 var currentPasswordWithSalt = request.CurrentPassword + credential.PasswordSalt;
                 if (!BCrypt.Net.BCrypt.Verify(currentPasswordWithSalt, credential.PasswordHash))
                 {
@@ -179,25 +194,33 @@ namespace AuthService.Application.Services
 
                 _passwordService.ValidatePasswordStrength(request.NewPassword);
 
-                var passwordSalt = GeneratePasswordSalt();
-                var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword + passwordSalt, 12);
+                var newPasswordSalt = GeneratePasswordSalt();
+                var newPasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword + newPasswordSalt, 12);
 
-                credential.PasswordHash = passwordHash;
-                credential.PasswordSalt = passwordSalt;
+                credential.PasswordHash = newPasswordHash;
+                credential.PasswordSalt = newPasswordSalt;
                 credential.PasswordChangedAt = DateTime.UtcNow;
+                // Add these if needed by UpdateAsync and entity
+                // credential.PasswordAlgorithm = "bcrypt";
+                // credential.PasswordIterations = 12;
                 await _credentialRepository.UpdateAsync(credential);
 
-                _logger.LogInformation("Password changed for user: {UserId}", request.UserId);
-
+                _logger.LogInformation("Password changed successfully for user: {UserId}", request.UserId);
                 return true;
+            }
+            catch (ValidationException vex)
+            {
+                _logger.LogWarning("Password change validation failed for UserId {UserId}: {ErrorMessage}", request.UserId, vex.Message);
+                return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Password change failed");
-                throw;
+                _logger.LogError(ex, "Password change failed unexpectedly for user: {UserId}", request.UserId);
+                return false;
             }
         }
 
+        // WARNING: Inconsistent with RegisterGrpcAsync. Only creates credential, assumes user exists.
         public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
         {
             try
@@ -206,6 +229,8 @@ namespace AuthService.Application.Services
                 {
                     return new RegisterResponseDto { Success = false, Message = "Email already exists" };
                 }
+
+                _passwordService.ValidatePasswordStrength(request.Password);
 
                 var passwordSalt = GeneratePasswordSalt();
                 var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password + passwordSalt, 12);
@@ -216,80 +241,112 @@ namespace AuthService.Application.Services
                     Email = request.Email,
                     PasswordHash = passwordHash,
                     PasswordSalt = passwordSalt,
-                    Role = RoleType.Customer,
+                    Role = RoleType.Customer, // Use corrected enum name
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
+                    // PasswordAlgorithm = "bcrypt", // Add if CreateAsync expects it
+                    // PasswordIterations = 12       // Add if CreateAsync expects it
                 };
 
                 var created = await _credentialRepository.CreateAsync(userCredential);
 
-                _logger.LogInformation("User registered successfully with Email {Email}", request.Email);
+                _logger.LogInformation("User credential created via RegisterAsync for Email {Email}", request.Email);
 
                 return new RegisterResponseDto
                 {
                     Success = true,
                     Message = "User registered successfully",
-                    UserId = created.UserId
+                    UserId = created.UserId,
+                    CredentialId = created.CredentialId
                 };
+            }
+            catch (ValidationException vex)
+            {
+                _logger.LogWarning("User registration (RegisterAsync) validation failed: {ErrorMessage}", vex.Message);
+                return new RegisterResponseDto { Success = false, Message = vex.Message };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "User registration failed for {Email}", request.Email);
-                return new RegisterResponseDto { Success = false, Message = "Internal server error" };
+                _logger.LogError(ex, "User registration (RegisterAsync) failed unexpectedly for {Email}", request.Email);
+                return new RegisterResponseDto { Success = false, Message = "An internal error occurred." };
             }
         }
 
+        // Assumed main registration path
         public async Task<RegisterResponseDto> RegisterGrpcAsync(RegisterRequestDto request)
         {
             try
             {
-                // Check if email already exists (optional)
-                // if (await _userRepository.EmailExistsAsync(request.Email)) 
-                //     return new RegisterResponseDto { Success = false, Message = "Email already exists" };
+                if (await _credentialRepository.EmailExistsAsync(request.Email))
+                {
+                    return new RegisterResponseDto { Success = false, Message = "Email already exists" };
+                }
+
+                _passwordService.ValidatePasswordStrength(request.Password);
 
                 var passwordSalt = GeneratePasswordSalt();
-                var passwordHash = request.Password;
+                var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password + passwordSalt, 12);
+
+                // Fix: Convert enum to lowercase string for PG function
+                var roleString = RoleType.Customer.ToString().ToLowerInvariant();
 
                 var result = await _credentialRepository.RegisterUserEnhancedAsync(
                     userId: request.UserId,
                     email: request.Email,
-                    passwordHash: passwordHash,
-                    passwordSalt: passwordSalt,
-                    role: "customer",
+                    passwordHash: passwordHash, // HASHED
+                    passwordSalt: passwordSalt, // SALT
+                    role: roleString,           // Lowercase string
                     phoneNumber: request.PhoneNumber,
                     referredBy: request.ReferredBy,
-                    createdIp: request.ClientIp
+                    createdIp: request.ClientIp ?? "0.0.0.0"
                 );
 
-                _logger.LogInformation("User registered successfully with Email {Email}", request.Email);
+                _logger.LogInformation("User registered via GRPC/Function for Email {Email}, UserId {UserId}", request.Email, result.UserId);
 
                 return new RegisterResponseDto
                 {
                     Success = true,
                     Message = "User registered successfully",
                     UserId = result.UserId,
-                    CredentialId = result.CredentialId  
+                    CredentialId = result.CredentialId
                 };
+            }
+            catch (ValidationException vex)
+            {
+                _logger.LogWarning("GRPC User registration validation failed: {ErrorMessage}", vex.Message);
+                return new RegisterResponseDto { Success = false, Message = vex.Message };
+            }
+            catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.UniqueViolation)
+            {
+                _logger.LogError(pex, "GRPC Registration failed - Unique violation for {Email}.", request.Email);
+                string message = pex.ConstraintName?.Contains("email") ?? false
+                   ? "Email address already in use."
+                   : "User ID already exists or another unique value conflict occurred.";
+                return new RegisterResponseDto { Success = false, Message = message };
+            }
+            catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.InvalidTextRepresentation)
+            {
+                _logger.LogError(pex, "GRPC Registration failed - Invalid data format for {Email}. Role enum issue?", request.Email);
+                return new RegisterResponseDto { Success = false, Message = "Invalid data format provided (e.g., role)." };
+            }
+            catch (InfrastructureException infEx)  
+            {
+                _logger.LogError(infEx, "Infrastructure error during GRPC registration for {Email}", request.Email);
+                return new RegisterResponseDto { Success = false, Message = infEx.InnerException is PostgresException ? "Database error during registration." : "Infrastructure error during registration." };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "User registration failed for {Email}", request.Email);
-                return new RegisterResponseDto { Success = false, Message = "Internal server error" };
+                _logger.LogError(ex, "GRPC User registration failed unexpectedly for {Email}", request.Email);
+                return new RegisterResponseDto { Success = false, Message = "An internal error occurred." };
             }
         }
 
-
-
-
+        // --- Helper Methods ---
 
         private string GenerateSecureToken()
         {
-            var randomBytes = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomBytes);
-            }
+            var randomBytes = RandomNumberGenerator.GetBytes(32);
             return Convert.ToBase64String(randomBytes)
                 .Replace('+', '-')
                 .Replace('/', '_')
@@ -298,21 +355,15 @@ namespace AuthService.Application.Services
 
         private string GeneratePasswordSalt()
         {
-            var saltBytes = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(saltBytes);
-            }
+            var saltBytes = RandomNumberGenerator.GetBytes(32);
             return Convert.ToBase64String(saltBytes);
         }
 
         private string HashToken(string token)
         {
-            using (var sha256 = SHA256.Create())
-            {
-                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(token));
-                return Convert.ToHexString(hashedBytes).ToLower();
-            }
+            if (string.IsNullOrEmpty(token)) return string.Empty;
+            var hashedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return Convert.ToHexString(hashedBytes).ToLowerInvariant();
         }
     }
 }

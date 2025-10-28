@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 
 namespace AuthService.Domain.Entities
 {
@@ -18,7 +19,6 @@ namespace AuthService.Domain.Entities
         public DateTime ConnectedAt { get; set; }
         public DateTime? LastUsedAt { get; set; }
         public bool IsActive { get; set; } = true;
-
         public virtual OAuthProvider? Provider { get; set; }
     }
 }

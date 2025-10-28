@@ -66,9 +66,11 @@ namespace AuthService.Application.Services
                 }
 
                 // 3. If successful, proceed with token generation
-                var roleEnum = Enum.TryParse<RoleType>(authResult.Role, true, out var parsedRole)
-                    ? parsedRole
-                    : RoleType.Customer; // Default fallback
+                RoleType roleEnum;
+                if (!Enum.TryParse<RoleType>(authResult.Role, true, out roleEnum))
+                {
+                    roleEnum = RoleType.Customer; // Default fallback
+                }
 
                 var accessTokenJti = Guid.NewGuid().ToString();
                 var refreshTokenJti = Guid.NewGuid().ToString();
