@@ -128,4 +128,5 @@ token.Metadata = token.MetadataJson; // ❌ WRONG
 1. ✅ Build is working
 2. 🔲 Run database migration
 3. 🔲 Test token generation and validation
-4.
+4. 🔲 Test password reset flow
+5. 🔲 Deploy to dev/staging environment

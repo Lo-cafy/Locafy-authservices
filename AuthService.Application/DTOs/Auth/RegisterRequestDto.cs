@@ -1,4 +1,4 @@
-﻿using AuthService.Application.DTOs.Common;
+using AuthService.Application.DTOs.Common;
 using MediatR;
 using System.ComponentModel.DataAnnotations;
 
@@ -18,11 +18,11 @@ namespace AuthService.Application.DTOs.Auth
         [MinLength(8)]
         public string Password { get; set; } = "";
 
-        [Required]
+        // Phone number is OPTIONAL - database allows NULL
         [Phone]
         [StringLength(16, MinimumLength = 10, ErrorMessage = "Phone number length must be between 10 and 15 digits (plus optional '+').")]  
         [RegularExpression(@"^\+?[0-9]{10,15}$", ErrorMessage = "Invalid phone number format. Use only digits, optionally starting with '+'.")]
-        public string PhoneNumber { get; set; } = "";
+        public string? PhoneNumber { get; set; }
         
         public int? ReferredBy { get; set; }
 

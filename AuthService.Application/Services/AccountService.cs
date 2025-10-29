@@ -283,21 +283,37 @@ namespace AuthService.Application.Services
             {
                 // **STEP 1: Validate Phone Number Format**
                 string? validatedPhoneNumber = null; // Use nullable string
+                
+                // Handle phone number: if empty/whitespace, treat as NULL for database
                 if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
                 {
-                    // Remove common characters like spaces, hyphens, parentheses if needed before validation
-                    var cleanedPhoneNumber = Regex.Replace(request.PhoneNumber, @"[\s\-()]", "");
-
-                    if (!_phoneRegex.IsMatch(cleanedPhoneNumber))
+                    // Remove common formatting characters before validation
+                    var cleanedPhoneNumber = Regex.Replace(request.PhoneNumber, @"[\s\-().]", "");
+                    
+                    // Check if after cleaning, we still have content
+                    if (string.IsNullOrWhiteSpace(cleanedPhoneNumber))
                     {
-                        _logger.LogWarning("Invalid phone number format provided during registration for email {Email}: {PhoneNumber}", request.Email, request.PhoneNumber);
-                        // Return specific error message
-                        return new RegisterResponseDto { Success = false, Message = "Invalid phone number format. Use 10-15 digits, optionally starting with '+'." };
-                        // Or throw new ValidationException("Invalid phone number format.");
+                        // After cleaning, it's empty - treat as null
+                        validatedPhoneNumber = null;
+                        _logger.LogDebug("Phone number for {Email} was whitespace/formatting only, treating as null", request.Email);
                     }
-                    validatedPhoneNumber = cleanedPhoneNumber; // Use the cleaned/validated number
+                    else if (!_phoneRegex.IsMatch(cleanedPhoneNumber))
+                    {
+                        _logger.LogWarning("Invalid phone number format for {Email}: Original='{PhoneNumber}', Cleaned='{CleanedPhone}'", 
+                            request.Email, request.PhoneNumber, cleanedPhoneNumber);
+                        return new RegisterResponseDto 
+                        { 
+                            Success = false, 
+                            Message = "Invalid phone number format. Use 10-15 digits, optionally starting with '+'." 
+                        };
+                    }
+                    else
+                    {
+                        validatedPhoneNumber = cleanedPhoneNumber;
+                        _logger.LogDebug("Phone number validated for {Email}: '{ValidatedPhone}'", request.Email, validatedPhoneNumber);
+                    }
                 }
-                // If request.PhoneNumber is null or whitespace, validatedPhoneNumber will remain null, which is allowed by DB constraint
+                // If request.PhoneNumber is null or whitespace, validatedPhoneNumber remains null (allowed by DB)
 
                 // **STEP 2: Other Validations**
                 if (await _credentialRepository.EmailExistsAsync(request.Email))
