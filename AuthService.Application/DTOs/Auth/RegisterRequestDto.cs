@@ -26,7 +26,10 @@ namespace AuthService.Application.DTOs.Auth
         
         public int? ReferredBy { get; set; }
 
-        public string ClientIp { get; set; } = "";
+        [Required(ErrorMessage = "Client IP address is required")]
+        [RegularExpression(@"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+            ErrorMessage = "Invalid IP address format. Use valid IPv4 format (e.g., 127.0.0.1)")]
+        public string ClientIp { get; set; } = "0.0.0.0";
 
     }
 }

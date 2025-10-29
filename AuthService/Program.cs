@@ -8,6 +8,7 @@ using AuthService.Grpc.Interceptors;
 using AuthService.Grpc.Services;
 using AuthService.Infrastructure.Data;
 using AuthService.Infrastructure.Data.Interfaces;
+using AuthService.Infrastructure.Interfaces;
 using Grpc.Net.Client.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -157,11 +158,23 @@ builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
 
 builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimitOptions"));
 
+// Register Application Services (after all dependencies are registered)
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IDigitalFingerprintService, DigitalFingerprintService>();
 builder.Services.AddScoped<IAuthService, AuthService.Application.Services.AuthService>();
-builder.Services.AddScoped<IAccountService, AccountService>();
+
+// Register AccountService with all dependencies verified
+try
+{
+    builder.Services.AddScoped<IAccountService, AccountService>();
+    Log.Information("✅ IAccountService registered successfully");
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "❌ Failed to register IAccountService");
+    throw;
+}
 
 builder.Services.AddHttpClient();
 
@@ -218,19 +231,42 @@ app.MapGrpcHealthChecksService();
 app.MapGet("/", () => "gRPC Server running...");
 
 
+// Verify Dependency Injection Setup
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
+        // Test database connection
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         if (db.Database.CanConnect())
             Log.Information("✅ Successfully connected to Neon PostgreSQL Database!");
         else
             Log.Error("❌ Failed to connect to Neon Database!");
+        
+        // Verify critical services can be resolved
+        Log.Information("Verifying DI registrations...");
+        
+        var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
+        Log.Information("✅ IAccountService resolved successfully");
+        
+        var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+        Log.Information("✅ IAuthService resolved successfully");
+        
+        var passwordService = scope.ServiceProvider.GetRequiredService<IPasswordService>();
+        Log.Information("✅ IPasswordService resolved successfully");
+        
+        var userCredRepo = scope.ServiceProvider.GetRequiredService<IUserCredentialRepository>();
+        Log.Information("✅ IUserCredentialRepository resolved successfully");
+        
+        var tokenRepo = scope.ServiceProvider.GetRequiredService<ISecurityTokenRepository>();
+        Log.Information("✅ ISecurityTokenRepository resolved successfully");
+        
+        Log.Information("✅ All critical services verified!");
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "❌ Error checking Neon Database connection!");
+        Log.Fatal(ex, "❌ Dependency Injection verification failed!");
+        throw; // Fail fast if DI is broken
     }
 }
 

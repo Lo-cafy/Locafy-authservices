@@ -227,5 +227,41 @@
       }
     ],
     "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthService.Controllers.TestRegistrationController",
+    "Method": "TestRegister",
+    "RelativePath": "api/TestRegistration",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "AuthService.Application.DTOs.Auth.RegisterRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthService.Controllers.TestRegistrationController",
+    "Method": "HealthCheck",
+    "RelativePath": "api/TestRegistration/health",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "AuthService.Controllers.TestRegistrationController",
+    "Method": "GetTestScenarios",
+    "RelativePath": "api/TestRegistration/scenarios",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
   }
 ]

@@ -5,16 +5,16 @@ using AuthService.Application.Interfaces;
 using AuthService.Domain.Entities;
 using AuthService.Domain.Enums;
 using AuthService.Infrastructure.Interfaces;
-using AuthService.Infrastructure.Repositories; // For InfrastructureException
+using AuthService.Infrastructure.Repositories;  
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions; // Added for Regex validation
+using System.Text.RegularExpressions; 
 using System.Threading.Tasks;
-using Npgsql; // For PostgresException
+using Npgsql;  
 
 namespace AuthService.Application.Services
 {
@@ -47,11 +47,10 @@ namespace AuthService.Application.Services
             _configuration = configuration;
         }
 
-        // --- RequestPasswordResetAsync, ResetPasswordAsync, ChangePasswordAsync (no changes needed here for phone validation) ---
+         
         public async Task<bool> RequestPasswordResetAsync(string email)
         {
-            // (Previous code - no changes)
-            try
+       try
             {
                 var credential = await _credentialRepository.GetByEmailAsync(email);
                 if (credential == null)
@@ -122,8 +121,7 @@ namespace AuthService.Application.Services
 
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto request)
         {
-            // (Previous code - no changes)
-            try
+           try
             {
                 var tokenHash = HashToken(request.Token);
                 var token = await _tokenRepository.GetByTokenHashAsync(tokenHash);
@@ -183,8 +181,7 @@ namespace AuthService.Application.Services
 
         public async Task<bool> ChangePasswordAsync(ChangePasswordDto request)
         {
-            // (Previous code - no changes)
-            try
+           try
             {
                 var credential = await _credentialRepository.GetByUserIdAsync(request.UserId);
                 if (credential == null)
@@ -224,11 +221,9 @@ namespace AuthService.Application.Services
             }
         }
 
-        // WARNING: Inconsistent with RegisterGrpcAsync. Only creates credential, assumes user exists.
-        public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
+      public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
         {
-            // (Previous code - no changes)
-            try
+     try
             {
                 if (await _credentialRepository.EmailExistsAsync(request.Email))
                 {
@@ -276,118 +271,42 @@ namespace AuthService.Application.Services
             }
         }
 
-        // Assumed main registration path
-        public async Task<RegisterResponseDto> RegisterGrpcAsync(RegisterRequestDto request)
+   public async Task<RegisterResponseDto> RegisterGrpcAsync(RegisterRequestDto request)
         {
             try
             {
-                // **STEP 1: Validate Phone Number Format**
-                string? validatedPhoneNumber = null; // Use nullable string
-                
-                // Handle phone number: if empty/whitespace, treat as NULL for database
-                if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
-                {
-                    // Remove common formatting characters before validation
-                    var cleanedPhoneNumber = Regex.Replace(request.PhoneNumber, @"[\s\-().]", "");
-                    
-                    // Check if after cleaning, we still have content
-                    if (string.IsNullOrWhiteSpace(cleanedPhoneNumber))
-                    {
-                        // After cleaning, it's empty - treat as null
-                        validatedPhoneNumber = null;
-                        _logger.LogDebug("Phone number for {Email} was whitespace/formatting only, treating as null", request.Email);
-                    }
-                    else if (!_phoneRegex.IsMatch(cleanedPhoneNumber))
-                    {
-                        _logger.LogWarning("Invalid phone number format for {Email}: Original='{PhoneNumber}', Cleaned='{CleanedPhone}'", 
-                            request.Email, request.PhoneNumber, cleanedPhoneNumber);
-                        return new RegisterResponseDto 
-                        { 
-                            Success = false, 
-                            Message = "Invalid phone number format. Use 10-15 digits, optionally starting with '+'." 
-                        };
-                    }
-                    else
-                    {
-                        validatedPhoneNumber = cleanedPhoneNumber;
-                        _logger.LogDebug("Phone number validated for {Email}: '{ValidatedPhone}'", request.Email, validatedPhoneNumber);
-                    }
-                }
-                // If request.PhoneNumber is null or whitespace, validatedPhoneNumber remains null (allowed by DB)
-
-                // **STEP 2: Other Validations**
-                if (await _credentialRepository.EmailExistsAsync(request.Email))
-                {
-                    return new RegisterResponseDto { Success = false, Message = "Email already exists" };
-                }
-
-                _passwordService.ValidatePasswordStrength(request.Password);
-
-                // **STEP 3: Hashing**
                 var passwordSalt = GeneratePasswordSalt();
-                var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password + passwordSalt, 12);
-                var roleString = RoleType.Customer.ToString().ToLowerInvariant();
+                var passwordHash = request.Password;
 
-                // **STEP 4: Call Repository (Pass validatedPhoneNumber)**
                 var result = await _credentialRepository.RegisterUserEnhancedAsync(
                     userId: request.UserId,
                     email: request.Email,
                     passwordHash: passwordHash,
                     passwordSalt: passwordSalt,
-                    role: roleString,
-                    phoneNumber: validatedPhoneNumber, // Pass the validated (or null) phone number
+                    role: "customer",
+                    phoneNumber: request.PhoneNumber,
                     referredBy: request.ReferredBy,
-                    createdIp: request.ClientIp ?? "0.0.0.0"
+                    createdIp: request.ClientIp
                 );
 
-                _logger.LogInformation("User registered via GRPC/Function for Email {Email}, UserId {UserId}", request.Email, result.UserId);
+                _logger.LogInformation("User registered successfully with Email {Email}", request.Email);
 
                 return new RegisterResponseDto
                 {
                     Success = true,
                     Message = "User registered successfully",
                     UserId = result.UserId,
-                    CredentialId = result.CredentialId
+                    CredentialId = result.CredentialId  
                 };
-            }
-            catch (ValidationException vex)
-            {
-                _logger.LogWarning("GRPC User registration validation failed: {ErrorMessage}", vex.Message);
-                return new RegisterResponseDto { Success = false, Message = vex.Message };
-            }
-            catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.UniqueViolation)
-            {
-                _logger.LogError(pex, "GRPC Registration failed - Unique violation for {Email}.", request.Email);
-                string message = pex.ConstraintName?.Contains("email") ?? false
-                   ? "Email address already in use."
-                   : "User ID already exists or another unique value conflict occurred.";
-                return new RegisterResponseDto { Success = false, Message = message };
-            }
-            catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.InvalidTextRepresentation)
-            {
-                _logger.LogError(pex, "GRPC Registration failed - Invalid data format for {Email}. Role enum issue?", request.Email);
-                return new RegisterResponseDto { Success = false, Message = "Invalid data format provided (e.g., role)." };
-            }
-            // Catch the specific exception from the repository if thrown
-            catch (InfrastructureException infEx) when (infEx.InnerException is PostgresException pex && pex.SqlState == PostgresErrorCodes.CheckViolation && pex.ConstraintName == "valid_phone_format")
-            {
-                // This specific catch might be redundant now with C# validation, but can be kept as a fallback log
-                _logger.LogError(infEx, "GRPC Registration failed: Database check constraint 'valid_phone_format' violated for email {Email} despite C# check.", request.Email);
-                return new RegisterResponseDto { Success = false, Message = "Invalid phone number format detected by database." };
-            }
-            catch (InfrastructureException infEx)
-            {
-                _logger.LogError(infEx, "Infrastructure error during GRPC registration for {Email}", request.Email);
-                return new RegisterResponseDto { Success = false, Message = infEx.InnerException is PostgresException ? "Database error during registration." : "Infrastructure error during registration." };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GRPC User registration failed unexpectedly for {Email}", request.Email);
-                return new RegisterResponseDto { Success = false, Message = "An internal error occurred." };
+                _logger.LogError(ex, "User registration failed for {Email}", request.Email);
+                return new RegisterResponseDto { Success = false, Message = "Internal server error" };
             }
         }
 
-        // --- Helper Methods ---
+         
 
         private string GenerateSecureToken()
         {
