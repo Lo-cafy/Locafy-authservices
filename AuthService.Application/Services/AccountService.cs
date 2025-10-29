@@ -1,4 +1,3 @@
-// AuthService.Application/Services/AccountService.cs
 using AuthService.Application.DTOs.Account;
 using AuthService.Application.DTOs.Auth;
 using AuthService.Application.Exceptions;
@@ -13,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions; // Added for Regex validation
 using System.Threading.Tasks;
 using Npgsql; // For PostgresException
 
@@ -24,8 +24,12 @@ namespace AuthService.Application.Services
         private readonly ISecurityTokenRepository _tokenRepository;
         private readonly IPasswordService _passwordService;
         private readonly ILogger<AccountService> _logger;
-        private readonly EmailService.Grpc.EmailService.EmailServiceClient _emailServiceClient;  
+        private readonly EmailService.Grpc.EmailService.EmailServiceClient _emailServiceClient;
         private readonly IConfiguration _configuration;
+
+        // Phone number validation regex (matching DB constraint ^\+?[0-9]{10,15}$)
+        private static readonly Regex _phoneRegex = new Regex(@"^\+?[0-9]{10,15}$", RegexOptions.Compiled);
+
 
         public AccountService(
             IUserCredentialRepository credentialRepository,
@@ -43,8 +47,10 @@ namespace AuthService.Application.Services
             _configuration = configuration;
         }
 
+        // --- RequestPasswordResetAsync, ResetPasswordAsync, ChangePasswordAsync (no changes needed here for phone validation) ---
         public async Task<bool> RequestPasswordResetAsync(string email)
         {
+            // (Previous code - no changes)
             try
             {
                 var credential = await _credentialRepository.GetByEmailAsync(email);
@@ -65,6 +71,7 @@ namespace AuthService.Application.Services
                     TokenPlain = resetToken,
                     ExpiresAt = DateTime.UtcNow.AddHours(1),
                     CreatedAt = DateTime.UtcNow,
+                    IsActive = true,
                     Metadata = new Dictionary<string, object>()
                 };
 
@@ -115,6 +122,7 @@ namespace AuthService.Application.Services
 
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto request)
         {
+            // (Previous code - no changes)
             try
             {
                 var tokenHash = HashToken(request.Token);
@@ -124,7 +132,7 @@ namespace AuthService.Application.Services
                 const string usedTokenMsg = "Reset token has already been used.";
                 const string userNotFoundMsg = "User account not found for this token.";
 
-                if (token == null || token.TokenType != TokenTypeEnum.ResetPassword)
+                if (token == null || token.TokenType != TokenTypeEnum.ResetPassword || !token.IsActive)
                 {
                     throw new ValidationException(invalidTokenMsg);
                 }
@@ -139,7 +147,6 @@ namespace AuthService.Application.Services
 
                 _passwordService.ValidatePasswordStrength(request.NewPassword);
 
-                // Fix: Cast long UserId from token to int for repository method
                 var credential = await _credentialRepository.GetByUserIdAsync((int)token.UserId);
                 if (credential == null)
                 {
@@ -154,9 +161,7 @@ namespace AuthService.Application.Services
                 credential.PasswordChangedAt = DateTime.UtcNow;
                 credential.FailedAttempts = 0;
                 credential.LockedUntil = null;
-                // Add these if needed by UpdateAsync and entity
-                // credential.PasswordAlgorithm = "bcrypt";
-                // credential.PasswordIterations = 12;
+
                 await _credentialRepository.UpdateAsync(credential);
 
                 await _tokenRepository.MarkAsUsedAsync(token.TokenId);
@@ -178,6 +183,7 @@ namespace AuthService.Application.Services
 
         public async Task<bool> ChangePasswordAsync(ChangePasswordDto request)
         {
+            // (Previous code - no changes)
             try
             {
                 var credential = await _credentialRepository.GetByUserIdAsync(request.UserId);
@@ -200,9 +206,7 @@ namespace AuthService.Application.Services
                 credential.PasswordHash = newPasswordHash;
                 credential.PasswordSalt = newPasswordSalt;
                 credential.PasswordChangedAt = DateTime.UtcNow;
-                // Add these if needed by UpdateAsync and entity
-                // credential.PasswordAlgorithm = "bcrypt";
-                // credential.PasswordIterations = 12;
+
                 await _credentialRepository.UpdateAsync(credential);
 
                 _logger.LogInformation("Password changed successfully for user: {UserId}", request.UserId);
@@ -223,6 +227,7 @@ namespace AuthService.Application.Services
         // WARNING: Inconsistent with RegisterGrpcAsync. Only creates credential, assumes user exists.
         public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
         {
+            // (Previous code - no changes)
             try
             {
                 if (await _credentialRepository.EmailExistsAsync(request.Email))
@@ -241,12 +246,10 @@ namespace AuthService.Application.Services
                     Email = request.Email,
                     PasswordHash = passwordHash,
                     PasswordSalt = passwordSalt,
-                    Role = RoleType.Customer, // Use corrected enum name
+                    Role = RoleType.Customer,  
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
-                    // PasswordAlgorithm = "bcrypt", // Add if CreateAsync expects it
-                    // PasswordIterations = 12       // Add if CreateAsync expects it
                 };
 
                 var created = await _credentialRepository.CreateAsync(userCredential);
@@ -278,6 +281,25 @@ namespace AuthService.Application.Services
         {
             try
             {
+                // **STEP 1: Validate Phone Number Format**
+                string? validatedPhoneNumber = null; // Use nullable string
+                if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+                {
+                    // Remove common characters like spaces, hyphens, parentheses if needed before validation
+                    var cleanedPhoneNumber = Regex.Replace(request.PhoneNumber, @"[\s\-()]", "");
+
+                    if (!_phoneRegex.IsMatch(cleanedPhoneNumber))
+                    {
+                        _logger.LogWarning("Invalid phone number format provided during registration for email {Email}: {PhoneNumber}", request.Email, request.PhoneNumber);
+                        // Return specific error message
+                        return new RegisterResponseDto { Success = false, Message = "Invalid phone number format. Use 10-15 digits, optionally starting with '+'." };
+                        // Or throw new ValidationException("Invalid phone number format.");
+                    }
+                    validatedPhoneNumber = cleanedPhoneNumber; // Use the cleaned/validated number
+                }
+                // If request.PhoneNumber is null or whitespace, validatedPhoneNumber will remain null, which is allowed by DB constraint
+
+                // **STEP 2: Other Validations**
                 if (await _credentialRepository.EmailExistsAsync(request.Email))
                 {
                     return new RegisterResponseDto { Success = false, Message = "Email already exists" };
@@ -285,19 +307,19 @@ namespace AuthService.Application.Services
 
                 _passwordService.ValidatePasswordStrength(request.Password);
 
+                // **STEP 3: Hashing**
                 var passwordSalt = GeneratePasswordSalt();
                 var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password + passwordSalt, 12);
-
-                // Fix: Convert enum to lowercase string for PG function
                 var roleString = RoleType.Customer.ToString().ToLowerInvariant();
 
+                // **STEP 4: Call Repository (Pass validatedPhoneNumber)**
                 var result = await _credentialRepository.RegisterUserEnhancedAsync(
                     userId: request.UserId,
                     email: request.Email,
-                    passwordHash: passwordHash, // HASHED
-                    passwordSalt: passwordSalt, // SALT
-                    role: roleString,           // Lowercase string
-                    phoneNumber: request.PhoneNumber,
+                    passwordHash: passwordHash,
+                    passwordSalt: passwordSalt,
+                    role: roleString,
+                    phoneNumber: validatedPhoneNumber, // Pass the validated (or null) phone number
                     referredBy: request.ReferredBy,
                     createdIp: request.ClientIp ?? "0.0.0.0"
                 );
@@ -330,7 +352,14 @@ namespace AuthService.Application.Services
                 _logger.LogError(pex, "GRPC Registration failed - Invalid data format for {Email}. Role enum issue?", request.Email);
                 return new RegisterResponseDto { Success = false, Message = "Invalid data format provided (e.g., role)." };
             }
-            catch (InfrastructureException infEx)  
+            // Catch the specific exception from the repository if thrown
+            catch (InfrastructureException infEx) when (infEx.InnerException is PostgresException pex && pex.SqlState == PostgresErrorCodes.CheckViolation && pex.ConstraintName == "valid_phone_format")
+            {
+                // This specific catch might be redundant now with C# validation, but can be kept as a fallback log
+                _logger.LogError(infEx, "GRPC Registration failed: Database check constraint 'valid_phone_format' violated for email {Email} despite C# check.", request.Email);
+                return new RegisterResponseDto { Success = false, Message = "Invalid phone number format detected by database." };
+            }
+            catch (InfrastructureException infEx)
             {
                 _logger.LogError(infEx, "Infrastructure error during GRPC registration for {Email}", request.Email);
                 return new RegisterResponseDto { Success = false, Message = infEx.InnerException is PostgresException ? "Database error during registration." : "Infrastructure error during registration." };

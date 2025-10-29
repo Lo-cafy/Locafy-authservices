@@ -378,13 +378,6 @@ D:\SingleProject1\BACKEND\AuthHostingRepo\AuthService\obj\Debug\net8.0\refint\Au
 D:\SingleProject1\BACKEND\AuthHostingRepo\AuthService\obj\Debug\net8.0\AuthService.Api.pdb
 D:\SingleProject1\BACKEND\AuthHostingRepo\AuthService\obj\Debug\net8.0\AuthService.Api.genruntimeconfig.cache
 D:\SingleProject1\BACKEND\AuthHostingRepo\AuthService\obj\Debug\net8.0\ref\AuthService.Api.dll
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.csproj.AssemblyReference.cache
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.GeneratedMSBuildEditorConfig.editorconfig
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.AssemblyInfoInputs.cache
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.AssemblyInfo.cs
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.csproj.CoreCompileInputs.cache
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.MvcApplicationPartsAssemblyInfo.cache
-D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.sourcelink.json
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\appsettings.Development.json
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\appsettings.json
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\AuthService.Api.staticwebassets.endpoints.json
@@ -551,7 +544,14 @@ D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\AuthSe
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\AuthService.Infrastructure.pdb
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\AuthService.Grpc.Client.pdb
 D:\SingleProject1\AuthService\databwseupdate\AuthService\bin\Debug\net8.0\AuthService.Domain.pdb
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.csproj.AssemblyReference.cache
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.GeneratedMSBuildEditorConfig.editorconfig
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.AssemblyInfoInputs.cache
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.AssemblyInfo.cs
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.csproj.CoreCompileInputs.cache
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.MvcApplicationPartsAssemblyInfo.cs
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.MvcApplicationPartsAssemblyInfo.cache
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.sourcelink.json
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\scopedcss\bundle\AuthService.Api.styles.css
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\staticwebassets.build.json
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\staticwebassets.development.json
@@ -568,3 +568,4 @@ D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\refint
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.pdb
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\AuthService.Api.genruntimeconfig.cache
 D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\ref\AuthService.Api.dll
+D:\SingleProject1\AuthService\databwseupdate\AuthService\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

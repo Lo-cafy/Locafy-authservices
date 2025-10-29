@@ -1,4 +1,4 @@
-﻿using AuthService.Domain.Enums;
+using AuthService.Domain.Enums;
 using System;
 using System.Collections.Generic;
 
@@ -14,6 +14,7 @@ namespace AuthService.Domain.Entities
         public DateTime ExpiresAt { get; set; }
         public DateTime? UsedAt { get; set; }
         public VerificationStatus VerificationStatus { get; set; }
+        public bool IsActive { get; set; } = true;
         public Dictionary<string, object> Metadata { get; set; }
         public string MetadataJson { get; set; }
         public string CreatedIp { get; set; }

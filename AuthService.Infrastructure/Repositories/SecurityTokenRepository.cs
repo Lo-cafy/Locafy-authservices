@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Dapper;
 using AuthService.Domain.Entities;
@@ -27,12 +27,14 @@ namespace AuthService.Infrastructure.Repositories
                     expires_at as ExpiresAt,
                     used_at as UsedAt,
                     verification_status as VerificationStatus,
+                    is_active as IsActive,
                     metadata as MetadataJson,
                     created_ip as CreatedIp,
                     created_at as CreatedAt
                 FROM auth.security_tokens 
                 WHERE token_hash = @TokenHash
                 AND verification_status = 'pending'
+                AND is_active = true
                 AND expires_at > CURRENT_TIMESTAMP";
 
             var token = await ExecuteAsync<SecurityToken>(sql, new { TokenHash = tokenHash });
@@ -50,10 +52,10 @@ namespace AuthService.Infrastructure.Repositories
             const string sql = @"
                 INSERT INTO auth.security_tokens (
                     user_id, token_type, token_hash, token_plain,
-                    expires_at, metadata, created_ip, verification_status
+                    expires_at, metadata, created_ip, verification_status, is_active
                 ) VALUES (
                     @UserId, @TokenType, @TokenHash, @TokenPlain,
-                    @ExpiresAt, @Metadata::jsonb, @CreatedIp::inet, 'pending'
+                    @ExpiresAt, @Metadata::jsonb, @CreatedIp::inet, 'pending', true
                 ) RETURNING 
                     token_id as TokenId,
                     created_at as CreatedAt";
@@ -81,14 +83,16 @@ namespace AuthService.Infrastructure.Repositories
             const string sql = @"
                 UPDATE auth.security_tokens 
                 SET used_at = @UsedAt,
-                    verification_status = @VerificationStatus
+                    verification_status = @VerificationStatus,
+                    is_active = @IsActive
                 WHERE token_id = @TokenId";
 
             var affected = await ExecuteCommandAsync(sql, new
             {
                 token.TokenId,
                 token.UsedAt,
-                VerificationStatus = token.VerificationStatus.ToString()
+                VerificationStatus = token.VerificationStatus.ToString(),
+                token.IsActive
             });
 
             return affected > 0;
